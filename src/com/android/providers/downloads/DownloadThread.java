@@ -114,7 +114,9 @@ public class DownloadThread implements Runnable {
 
     private volatile boolean mPolicyDirty;
 
-    /**
+ private final static String QRD_ETAG = "qrd_magic_etag";
+
+     /**
      * Local changes to {@link DownloadInfo}. These are kept local to avoid
      * racing with the thread that updates based on change notifications.
      */
@@ -655,6 +657,10 @@ public class DownloadThread implements Runnable {
             if (mInfo.mStatus == Downloads.Impl.STATUS_CANCELED || mInfo.mDeleted) {
                 throw new StopRequestException(Downloads.Impl.STATUS_CANCELED, "download canceled");
             }
+ if (mInfo.mStatus == Downloads.Impl.STATUS_PAUSED_BY_MANUAL) {
+ // user pauses the download by manual, here send exception and stop the request.
+ throw new StopRequestException(Downloads.Impl.STATUS_PAUSED_BY_MANUAL, "download paused by manual");
+ }
         }
 
         // if policy has been changed, trigger connectivity check
@@ -727,6 +733,10 @@ public class DownloadThread implements Runnable {
             mInfoDelta.mMimeType = Intent.normalizeMimeType(conn.getContentType());
         }
 
+ if (mInfoDelta.mETag == null) {
+ mInfoDelta.mETag = QRD_ETAG;
+ }
+
         final String transferEncoding = conn.getHeaderField("Transfer-Encoding");
         if (transferEncoding == null) {
             mInfoDelta.mTotalBytes = getHeaderFieldLong(conn, "Content-Length", -1);
@@ -777,7 +787,10 @@ public class DownloadThread implements Runnable {
 
         if (resuming) {
             if (mInfoDelta.mETag != null) {
-                conn.addRequestProperty("If-Match", mInfoDelta.mETag);
+ if (!mInfoDelta.mETag.equals(QRD_ETAG)) {
+ conn.addRequestProperty("If-Match", mInfoDelta.mETag);
+ }
+
             }
             conn.addRequestProperty("Range", "bytes=" + mInfoDelta.mCurrentBytes + "-");
         }

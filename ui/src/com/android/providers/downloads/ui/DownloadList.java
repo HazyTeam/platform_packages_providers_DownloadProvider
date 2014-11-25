@@ -24,6 +24,32 @@ import android.provider.DocumentsContract;
 import com.android.providers.downloads.Constants;
 
 public class DownloadList extends Activity {
+
+    static final int PAUSE_DOWNLOAD = 0;
+    static final int RESUME_DOWNLOAD = 1;
+
+    /**
+     * @return an OnClickListener to pause or resume the given downloadId from the Download Manager
+     */
+    private DialogInterface.OnClickListener pauseResumeHandler(final long downloadId, final int operationId) {
+        return new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                if (operationId == PAUSE_DOWNLOAD) {
+                    mDownloadManager.pauseDownload(downloadId);
+                } else {
+                    mDownloadManager.resumeDownload(downloadId);
+                    // resumeDownload() in download manager only sets download status to
+                    // running and then sends broadcast to start the service
+                    Intent intent = new Intent(Constants.ACTION_RESUME);
+                    intent.setClassName(Constants.PROVIDER_PACKAGE_NAME,
+                                 "com.android.providers.downloads.DownloadReceiver");
+                    sendBroadcast(intent);
+                }
+            }
+        };
+    }
+
     @Override
     public void onCreate(Bundle icicle) {
         super.onCreate(icicle);
