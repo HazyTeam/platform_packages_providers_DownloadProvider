@@ -154,25 +154,9 @@ public class DownloadNotifier {
             }
             builder.setWhen(firstShown);
 
-            // Check paused status about these downloads. If exists, will
-            // update icon and content title/content text in notification.
-            boolean hasPausedStatus = false;
-            int pausedStatus = -1;
-            for (DownloadInfo info : cluster) {
-                if (isPausedStatus(info.mStatus)) {
-                    hasPausedStatus = true;
-                    pausedStatus = info.mStatus;
-                    break;
-                }
-            }
-
             // Show relevant icon
             if (type == TYPE_ACTIVE) {
-                if (hasPausedStatus) {
-                    builder.setSmallIcon(R.drawable.download_pause);
-                } else {
-                    builder.setSmallIcon(android.R.drawable.stat_sys_download);
-                }
+                builder.setSmallIcon(android.R.drawable.stat_sys_download);
             } else if (type == TYPE_WAITING) {
                 builder.setSmallIcon(android.R.drawable.stat_sys_warning);
             } else if (type == TYPE_COMPLETE) {
@@ -189,7 +173,6 @@ public class DownloadNotifier {
                         getDownloadIds(cluster));
                 builder.setContentIntent(PendingIntent.getBroadcast(mContext,
                         0, intent, PendingIntent.FLAG_UPDATE_CURRENT));
-                builder.setOnlyAlertOnce(true);
                 builder.setOngoing(true);
 
             } else if (type == TYPE_COMPLETE) {
@@ -223,7 +206,7 @@ public class DownloadNotifier {
             // Calculate and show progress
             String remainingText = null;
             String percentText = null;
-            String speedAsSizeText = null;
+            String speedText = null;
             if (type == TYPE_ACTIVE) {
                 long current = 0;
                 long total = 0;
@@ -244,7 +227,7 @@ public class DownloadNotifier {
 
                     if (speed > 0) {
                         // use Formatter interface for determining speed unit
-                        speedAsSizeText = res.getString(R.string.download_speed,
+                        speedText = res.getString(R.string.download_speed,
                                 Formatter.formatFileSize(mContext, speed));
 
                         final long remainingMillis = ((total - current) * 1000) / speed;
@@ -269,21 +252,16 @@ public class DownloadNotifier {
                 builder.setContentText(remainingText);
 
                 if (type == TYPE_ACTIVE) {
-                    if (hasPausedStatus) {
-                        if (pausedStatus == Downloads.Impl.STATUS_PAUSED_BY_MANUAL) {
-                            builder.setContentText(res.getText(R.string.download_paused));
-                        } else {
-                            builder.setContentText(res.getText(R.string.download_queued));
-                        }
-                    } else if (speedAsSizeText != null) {
-                        builder.setContentText(res.getString(R.string.download_speed_text,
-                                remainingText, speedAsSizeText));
+                    if (!TextUtils.isEmpty(info.mDescription)) {
+                        inboxStyle.addLine(info.mDescription);
+                    } else {
+                        inboxStyle.addLine(res.getString(R.string.download_running));
                     }
 
-                    if (TextUtils.isEmpty(speedAsSizeText)) {
+                    if (TextUtils.isEmpty(speedText)) {
                         inboxStyle.setSummaryText(remainingText);
                     } else {
-                        inboxStyle.setSummaryText(speedAsSizeText + ", " + remainingText);
+                        inboxStyle.setSummaryText(speedText + ", " + remainingText);
                     }
 
                     builder.setContentInfo(percentText);
@@ -316,19 +294,15 @@ public class DownloadNotifier {
                 }
 
                 if (type == TYPE_ACTIVE) {
-                    if (hasPausedStatus) {
-                        builder.setContentTitle(res.getString(R.string.download_queued));
-                    } else {
-                        builder.setContentTitle(res.getQuantityString(
-                                R.plurals.notif_summary_active, cluster.size(), cluster.size()));
-                    }
+                    builder.setContentTitle(res.getQuantityString(
+                            R.plurals.notif_summary_active, cluster.size(), cluster.size()));
                     builder.setContentText(remainingText);
                     builder.setContentInfo(percentText);
 
-                    if (TextUtils.isEmpty(speedAsSizeText)) {
+                    if (TextUtils.isEmpty(speedText)) {
                         inboxStyle.setSummaryText(remainingText);
                     } else {
-                        inboxStyle.setSummaryText(speedAsSizeText + ", " + remainingText);
+                        inboxStyle.setSummaryText(speedText + ", " + remainingText);
                     }
 
                 } else if (type == TYPE_WAITING) {
@@ -411,7 +385,7 @@ public class DownloadNotifier {
     }
 
     private static boolean isActiveAndVisible(DownloadInfo download) {
-        return Downloads.Impl.isStatusInformational(download.mStatus) &&
+        return download.mStatus == STATUS_RUNNING &&
                 (download.mVisibility == VISIBILITY_VISIBLE
                 || download.mVisibility == VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
     }
@@ -420,10 +394,5 @@ public class DownloadNotifier {
         return Downloads.Impl.isStatusCompleted(download.mStatus) &&
                 (download.mVisibility == VISIBILITY_VISIBLE_NOTIFY_COMPLETED
                 || download.mVisibility == VISIBILITY_VISIBLE_NOTIFY_ONLY_COMPLETION);
-    }
-
-    private static boolean isPausedStatus(int status) {
-        return status == Downloads.Impl.STATUS_WAITING_FOR_NETWORK ||
-                status == Downloads.Impl.STATUS_PAUSED_BY_MANUAL;
     }
 }
